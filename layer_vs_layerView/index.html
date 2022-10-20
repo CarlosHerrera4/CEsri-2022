@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <title>Layer vs LayerView query</title>
+
+    <link rel="stylesheet" href="https://js.arcgis.com/next/esri/themes/light/main.css" />
+    <script src="https://js.arcgis.com/4.24/"></script>
+
+    <style>
+        html,
+        body,
+        #viewDiv {
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+        }
+
+        #infoDiv {
+            width: 220px;
+            display: none;
+            background-color: #f5f5f5;
+            padding: 10px;
+        }
+    </style>
+    <script>
+    require([
+    "esri/Map",
+    "esri/views/MapView",
+    "esri/layers/CSVLayer",
+    "esri/core/watchUtils",
+    "esri/Graphic"
+  ], function (
+    Map, MapView, CSVLayer, watchUtils, Graphic
+  ) {
+
+    const url = "https://arcgis.github.io/arcgis-samples-javascript/sample-data/hurricanes.csv";
+
+    const csvLayer = new CSVLayer({
+      title: "Hurricanes",
+      url: url,
+      copyright: "NOAA",
+      renderer: {
+        type: "unique-value",
+        field: "Category",
+        uniqueValueInfos: createUniqueValueInfos()
+      }
+    });
+
+    const map = new Map({
+      basemap: "dark-gray-vector",
+      layers: [csvLayer]
+    });
+
+    const view = new MapView({
+      container: "viewDiv",
+      map: map,
+      center: [-100, 36],
+      zoom: 3
+    });
+
+    var layerCountElement = document.getElementById("layer-count");
+    var lvCountElement = document.getElementById("view-count");
+
+    view.whenLayerView(csvLayer).then(function(layerView){
+      var graphic = new Graphic({
+        geometry: view.extent,
+        symbol: {
+          type: "simple-fill",
+          color: null,
+          outline: {
+            color: "red",
+            width: "3px"
+          }
+        }
+      });
+      view.graphics.add(graphic)
+      // watchUtils.whenFalseOnce(layerView, "updating", function(){
+
+      layerView.watch("updating", function(val){
+        if(!val){ // wait for the layer view to finish updating
+
+ /*****************************************
+ * Call queryFeatures method on the layer
+ *****************************************/
+          csvLayer.queryFeatures().then(function(results){
+            document.getElementById("infoDiv").style.display = "block"
+            layerCountElement.innerHTML = "feature count: "
+              + results.features.length
+              + "<br/> wkid: " + results.features[0].geometry.spatialReference.wkid;
+            console.log("layer.queryFeatures()", results.features.length);
+            console.log("layer.queryFeatures: graphic.geometry:", results.features[0].geometry);
+          });
+
+/*****************************************
+* Call queryFeatures method on the layerView
+*****************************************/
+          layerView.queryFeatures().then(function(results){
+            lvCountElement.innerHTML = "feature count: "
+              + results.features.length
+              + "<br/> wkid: " + results.features[0].geometry.spatialReference.wkid;
+            console.log("layerView.queryFeatures: graphic.geometry:", results.features[0].geometry);
+            console.log("layerView.queryFeatures()", results.features.length);
+          });
+        }
+      });
+    });
+
+    view.ui.add("infoDiv", "top-right");
+
+    function createUniqueValueInfos() {
+      const fireflyImages = [
+        "cat1.png",
+        "cat2.png",
+        "cat3.png",
+        "cat4.png",
+        "cat5.png"
+      ];
+
+      const baseUrl =
+        "https://arcgis.github.io/arcgis-samples-javascript/sample-data/";
+
+      return fireflyImages.map(function(url, i) {
+        return {
+          value: i + 1, // Category number
+          symbol: {
+            type: "picture-marker",
+            url: baseUrl + url
+          }
+        };
+      });
+    }
+  });
+    </script>
+</head>
+
+<body>
+    <div id="viewDiv"></div>
+    <div id="infoDiv" class="esri-widget">
+        <h4 class="esri-heading" id="hd">Layer vs LayerView </h4>
+        <div class="esri-editor__controls">
+            <label class="esri-feature-form__label"> <b>Layer.query all features</b>
+                <span class="esri-feature-form__label" id="layer-count"></span>
+            </label>
+        </div>
+        <div class="esri-editor__controls">
+            <label class="esri-feature-form__label"> <b>LayerView.query all features</b>
+                <span class="esri-feature-form__label" id="view-count"></span>
+            </label>
+        </div>
+    </div>
+</body>
+
+</html>
